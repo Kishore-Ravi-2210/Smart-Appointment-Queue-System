@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SmartQueue</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f5f0e8;
+      color: #0d0d0d;
+      min-height: 100vh;
+      padding: 0 0 80px;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        repeating-linear-gradient(0deg, transparent, transparent 39px, #cfc8b5 39px, #cfc8b5 40px),
+        repeating-linear-gradient(90deg, transparent, transparent 39px, #cfc8b5 39px, #cfc8b5 40px);
+      opacity: 0.2;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .page {
+      position: relative;
+      z-index: 1;
+      max-width: 920px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* HEADER */
+    header {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      padding: 36px 0 20px;
+      border-bottom: 2px solid #0d0d0d;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .logo { font-size: clamp(1.8rem, 4vw, 2.8rem); font-weight: 700; line-height: 1; }
+    .logo span { color: #D85A30; }
+    .logo-sub { font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: #7a7060; margin-bottom: 5px; }
+
+    .live-badge {
+      display: flex; align-items: center; gap: 7px;
+      background: #0d0d0d; color: #f5f0e8;
+      padding: 6px 14px; border-radius: 3px;
+      font-size: 11px; letter-spacing: 0.15em; text-transform: uppercase;
+      align-self: flex-start;
+    }
+
+    .live-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: #4ade80;
+      animation: pulse 1.8s ease-in-out infinite;
+    }
+
+    @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(0.8)} }
+
+    /* GRID */
+    .main-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0;
+      margin-top: 0;
+    }
+
+    @media (max-width: 600px) {
+      .main-grid { grid-template-columns: 1fr; }
+      .left-cell  { border-right: none !important; padding-right: 0 !important; }
+      .queue-panel { padding-left: 0 !important; }
+    }
+
+    .section { padding: 28px 0; border-bottom: 1.5px solid #cfc8b5; }
+
+    .section-label {
+      font-size: 10px; letter-spacing: 0.3em; text-transform: uppercase;
+      color: #7a7060; margin-bottom: 18px;
+      display: flex; align-items: center; gap: 10px;
+    }
+
+    .section-label::after { content:''; flex:1; height:1px; background:#cfc8b5; }
+
+    .left-cell  { border-right: 1.5px solid #cfc8b5; padding-right: 28px; }
+    .queue-panel { padding-left: 28px; }
+
+    /* FORM */
+    .form-group { display: flex; flex-direction: column; gap: 10px; }
+
+    label.field-label {
+      font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase;
+      color: #7a7060;
+    }
+
+    input[type="text"].sq-input {
+      width: 100%; padding: 11px 14px;
+      font-size: 15px; font-family: inherit;
+      background: #faf7f2; color: #0d0d0d;
+      border: 1.5px solid #cfc8b5; border-radius: 4px;
+      outline: none; transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    input[type="text"].sq-input:focus {
+      border-color: #0d0d0d;
+      box-shadow: 3px 3px 0 #0d0d0d;
+    }
+
+    input[type="text"].sq-input::placeholder { color: #cfc8b5; }
+    input[type="text"].sq-input.error { border-color: #D85A30; animation: shake 0.3s ease; }
+    @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 75%{transform:translateX(6px)} }
+
+    .btn {
+      padding: 12px 20px; font-size: 13px; font-weight: 700;
+      font-family: inherit; letter-spacing: 0.04em;
+      border-radius: 4px; border: none; cursor: pointer;
+      transition: transform 0.12s, box-shadow 0.12s, background 0.15s;
+    }
+
+    .btn-dark {
+      background: #0d0d0d; color: #f5f0e8;
+      box-shadow: 3px 3px 0 #7a7060;
+    }
+
+    .btn-dark:hover  { background: #D85A30; box-shadow: 4px 4px 0 #a03825; transform: translate(-1px,-1px); }
+    .btn-dark:active { transform: translate(2px,2px); box-shadow: 1px 1px 0 #7a7060; }
+
+    .btn-outline {
+      background: transparent; color: #0d0d0d;
+      border: 1.5px solid #cfc8b5;
+      box-shadow: none; padding: 7px 14px;
+      font-size: 12px; font-weight: 600;
+    }
+
+    .btn-outline:hover { border-color: #0d0d0d; background: #ede7d5; }
+
+    .btn-red {
+      background: #D85A30; color: #fff;
+      box-shadow: 3px 3px 0 #a03825;
+    }
+
+    .btn-red:hover  { background: #a03825; box-shadow: 4px 4px 0 #7a2a1a; transform: translate(-1px,-1px); }
+    .btn-red:active { transform: translate(2px,2px); box-shadow: 1px 1px 0 #a03825; }
+
+    .btn:disabled {
+      background: #cfc8b5 !important; color: #7a7060 !important;
+      box-shadow: none !important; cursor: not-allowed; transform: none !important;
+    }
+
+    /* STATUS PANEL */
+    #statusPanel { display: none; flex-direction: column; gap: 14px; }
+
+    .token-card {
+      background: #0d0d0d; color: #f5f0e8;
+      border-radius: 6px; padding: 24px 22px;
+      position: relative; overflow: hidden;
+      transition: background 0.4s;
+    }
+
+    .token-card.your-turn { background: #1a3a5c; animation: glow 0.6s ease 3; }
+    @keyframes glow { 0%,100%{transform:scale(1)} 50%{transform:scale(1.012)} }
+
+    .token-card::before {
+      content: 'TOKEN';
+      position: absolute; top: 12px; right: 14px;
+      font-size: 9px; letter-spacing: 0.3em;
+      color: rgba(255,255,255,0.2);
+    }
+
+    .token-big {
+      font-size: 60px; font-weight: 700; line-height: 1;
+      color: #c9993a; letter-spacing: -2px;
+    }
+
+    .token-name { font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 6px; }
+
+    .token-pill {
+      display: inline-block; margin-top: 10px;
+      padding: 3px 10px; border-radius: 99px; font-size: 11px;
+      background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.5);
+      transition: background 0.3s, color 0.3s;
+    }
+
+    .token-pill.ready  { background: rgba(34,197,94,0.25); color: #86efac; }
+    .token-pill.served { background: rgba(216,90,48,0.25);  color: #fdba74; }
+
+    .wait-box {
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px 16px;
+      background: #faf7f2; border: 1.5px solid #cfc8b5; border-radius: 4px;
+    }
+
+    .wait-box .wait-num { font-size: 24px; font-weight: 700; color: #0d0d0d; }
+    .wait-box .wait-lbl { font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase; color: #7a7060; }
+
+    /* TOKEN STRIP */
+    .strip-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+
+    .t-chip {
+      padding: 5px 11px; border-radius: 99px; font-size: 12px; font-weight: 600;
+      background: #ede7d5; color: #7a7060;
+      border: 1.5px solid #cfc8b5; cursor: pointer;
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
+    }
+
+    .t-chip:hover   { background: #faf7f2; border-color: #D85A30; color: #0d0d0d; }
+    .t-chip.active  { background: #D85A30; border-color: #a03825; color: #fff; }
+    .t-chip.is-served { opacity: 0.5; }
+
+    /* QUEUE LIST */
+    .queue-counter { font-size: 2.4rem; font-weight: 700; color: #D85A30; line-height: 1; }
+    .queue-sub { font-size: 11px; color: #7a7060; margin-top: 2px; margin-bottom: 16px; }
+
+    .queue-scroll { display: flex; flex-direction: column; gap: 7px; max-height: 320px; overflow-y: auto; padding-right: 2px; }
+    .queue-scroll::-webkit-scrollbar { width: 3px; }
+    .queue-scroll::-webkit-scrollbar-thumb { background: #cfc8b5; border-radius: 2px; }
+
+    .q-row {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 12px; border-radius: 4px;
+      background: #faf7f2; border: 1.5px solid #cfc8b5;
+      animation: slideIn 0.25s ease;
+    }
+
+    .q-row.next { border-color: #D85A30; background: #fff9f7; }
+
+    @keyframes slideIn { from{opacity:0;transform:translateX(10px)} to{opacity:1;transform:translateX(0)} }
+
+    .q-pos {
+      width: 28px; height: 28px; border-radius: 4px; flex-shrink: 0;
+      background: #ede7d5; color: #7a7060;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 600;
+    }
+
+    .q-row.next .q-pos { background: #D85A30; color: #fff; }
+    .q-name  { font-size: 14px; font-weight: 600; flex: 1; color: #0d0d0d; }
+    .q-token { font-size: 11px; color: #7a7060; background: #ede7d5; padding: 2px 8px; border-radius: 3px; }
+
+    .q-empty {
+      text-align: center; padding: 36px 16px;
+      font-size: 12px; color: #7a7060; letter-spacing: 0.08em;
+      border: 1.5px dashed #cfc8b5; border-radius: 4px; line-height: 2;
+    }
+
+    /* BANNERS */
+    .banner {
+      display: none; margin-top: 20px;
+      padding: 16px 22px; border-radius: 0 6px 6px 0;
+      animation: pop 0.35s cubic-bezier(0.175,0.885,0.32,1.275);
+    }
+
+    @keyframes pop { from{opacity:0;transform:scale(0.96)} to{opacity:1;transform:scale(1)} }
+
+    .banner-serving    { background: #EAF3DE; border-left: 5px solid #639922; }
+    .banner-your-turn  { background: #E6F1FB; border-left: 5px solid #185FA5; }
+    .banner-lbl        { font-size: 9px; letter-spacing: 0.25em; text-transform: uppercase; margin-bottom: 5px; }
+    .banner-serving   .banner-lbl { color: #3B6D11; }
+    .banner-your-turn .banner-lbl { color: #185FA5; }
+    .banner-text       { font-size: 16px; font-weight: 700; }
+    .banner-serving   .banner-text { color: #27500A; }
+    .banner-your-turn .banner-text { color: #0C447C; }
+
+    /* STATS */
+    .stats-row {
+      display: flex; gap: 0; margin-top: 36px;
+      border: 1.5px solid #cfc8b5; border-radius: 6px; overflow: hidden;
+    }
+
+    .stat-cell {
+      flex: 1; padding: 16px 18px;
+      background: #faf7f2;
+      border-right: 1.5px solid #cfc8b5;
+    }
+
+    .stat-cell:last-child { border-right: none; }
+    .stat-val { font-size: 1.9rem; font-weight: 700; color: #0d0d0d; transition: color 0.3s; }
+    .stat-val.flash { color: #D85A30; }
+    .stat-lbl { font-size: 9px; letter-spacing: 0.2em; text-transform: uppercase; color: #7a7060; margin-top: 3px; }
+
+    /* STAFF */
+    .staff-bar {
+      margin-top: 36px; padding-top: 24px;
+      border-top: 2px solid #0d0d0d;
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 14px;
+    }
+
+    .staff-title { font-size: 15px; font-weight: 700; }
+    .staff-sub   { font-size: 11px; color: #7a7060; margin-top: 3px; }
+
+    hr.divider { border: none; border-top: 1.5px solid #cfc8b5; margin: 6px 0; }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <!-- HEADER -->
+  <header>
+    <div>
+      <div class="logo-sub">Appointment Management</div>
+      <div class="logo">Smart<span>Queue</span></div>
+    </div>
+    <div class="live-badge"><div class="live-dot"></div> Live System</div>
+  </header>
+
+  <!-- MAIN GRID -->
+  <div class="main-grid">
+
+    <!-- LEFT -->
+    <div class="section left-cell">
+
+      <!-- Registration -->
+      <div id="regPanel">
+        <div class="section-label">Join the queue</div>
+        <div class="form-group">
+          <label class="field-label" for="nameInput">Your full name</label>
+          <input type="text" class="sq-input" id="nameInput" placeholder="e.g. Ravi Kumar" maxlength="60" autocomplete="off">
+          <button class="btn btn-dark" id="joinBtn" style="width:100%;">Get my token &rarr;</button>
+        </div>
+      </div>
+
+      <!-- Token status -->
+      <div id="statusPanel">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
+          <div class="section-label" style="margin-bottom:0;flex:1;">Your token</div>
+          <button class="btn btn-outline" id="newPersonBtn">+ New person</button>
+        </div>
+
+        <div class="token-card" id="tokenCard">
+          <div class="token-big" id="myTokenNum">—</div>
+          <div class="token-name" id="myTokenName"></div>
+          <div class="token-pill" id="tokenPill">Waiting</div>
+        </div>
+
+        <div class="wait-box">
+          <div>
+            <div class="wait-lbl">Estimated wait</div>
+            <div class="wait-num"><span id="myWait">—</span> min</div>
+          </div>
+        </div>
+
+        <hr class="divider">
+        <div class="section-label" style="margin-bottom:10px;">All tokens this session</div>
+        <div id="tokensStrip" class="strip-row"></div>
+      </div>
+
+    </div>
+
+    <!-- RIGHT -->
+    <div class="section queue-panel">
+      <div class="section-label">Live queue</div>
+      <div class="queue-counter" id="queueCount">0</div>
+      <div class="queue-sub">people currently waiting</div>
+      <div class="queue-scroll" id="queueList">
+        <div class="q-empty">No one yet.<br>Be the first to join!</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- BANNERS -->
+  <div id="yourTurnBanner" class="banner banner-your-turn">
+    <div class="banner-lbl">&#128276; It&rsquo;s your turn</div>
+    <div class="banner-text" id="yourTurnText">Please proceed to the counter now.</div>
+  </div>
+
+  <div id="servingBanner" class="banner banner-serving">
+    <div class="banner-lbl">&#128266; Now serving</div>
+    <div class="banner-text" id="servingText">—</div>
+  </div>
+
+  <!-- STATS -->
+  <div class="stats-row">
+    <div class="stat-cell">
+      <div class="stat-val" id="statServed">0</div>
+      <div class="stat-lbl">Served today</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-val" id="statAvg">—</div>
+      <div class="stat-lbl">Avg wait (min)</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-val" id="statQueue">0</div>
+      <div class="stat-lbl">In queue</div>
+    </div>
+  </div>
+
+  <!-- STAFF -->
+  <div class="staff-bar">
+    <div>
+      <div class="staff-title">Staff controls</div>
+      <div class="staff-sub">Call the next person in line</div>
+    </div>
+    <button class="btn btn-red" id="serveBtn" disabled>&#9654; Serve next</button>
+  </div>
+
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ── State ─────────────────────────────────────────────── */
+  var queue        = [];   // { name, token }  — currently waiting
+  var allTokens    = [];   // { token, name, status: 'waiting'|'served' }
+  var nextToken    = 1;
+  var servedCount  = 0;
+  var serviceTimes = [10, 12, 8, 15, 10];
+  var viewingToken = null;
+
+  /* ── DOM refs ───────────────────────────────────────────── */
+  var nameInput      = document.getElementById('nameInput');
+  var joinBtn        = document.getElementById('joinBtn');
+  var serveBtn       = document.getElementById('serveBtn');
+  var newPersonBtn   = document.getElementById('newPersonBtn');
+  var regPanel       = document.getElementById('regPanel');
+  var statusPanel    = document.getElementById('statusPanel');
+  var tokenCard      = document.getElementById('tokenCard');
+  var myTokenNum     = document.getElementById('myTokenNum');
+  var myTokenName    = document.getElementById('myTokenName');
+  var myWait         = document.getElementById('myWait');
+  var tokenPill      = document.getElementById('tokenPill');
+  var queueList      = document.getElementById('queueList');
+  var queueCountEl   = document.getElementById('queueCount');
+  var tokensStrip    = document.getElementById('tokensStrip');
+  var servingBanner  = document.getElementById('servingBanner');
+  var servingText    = document.getElementById('servingText');
+  var yourTurnBanner = document.getElementById('yourTurnBanner');
+  var yourTurnText   = document.getElementById('yourTurnText');
+  var statServed     = document.getElementById('statServed');
+  var statAvg        = document.getElementById('statAvg');
+  var statQueue      = document.getElementById('statQueue');
+
+  /* ── Helpers ────────────────────────────────────────────── */
+  function avgWait() {
+    var s = 0;
+    for (var i = 0; i < serviceTimes.length; i++) s += serviceTimes[i];
+    return Math.round(s / serviceTimes.length);
+  }
+
+  function flash(el) {
+    el.classList.add('flash');
+    setTimeout(function () { el.classList.remove('flash'); }, 600);
+  }
+
+  function esc(s) {
+    return String(s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  function findAllToken(tok) {
+    for (var i = 0; i < allTokens.length; i++)
+      if (allTokens[i].token === tok) return allTokens[i];
+    return null;
+  }
+
+  function posInQueue(tok) {
+    for (var i = 0; i < queue.length; i++)
+      if (queue[i].token === tok) return i;
+    return -1;
+  }
+
+  /* ── Render queue list ──────────────────────────────────── */
+  function renderQueue() {
+    queueCountEl.textContent = queue.length;
+    statQueue.textContent    = queue.length;
+    serveBtn.disabled        = queue.length === 0;
+
+    if (queue.length === 0) {
+      queueList.innerHTML = '<div class="q-empty">Queue is clear.<br>All done for now! &#127881;</div>';
+      return;
+    }
+
+    var html = '';
+    for (var i = 0; i < queue.length; i++) {
+      var u   = queue[i];
+      var cls = i === 0 ? 'q-row next' : 'q-row';
+      var pos = i === 0 ? '&#9654;' : (i + 1);
+      html += '<div class="' + cls + '">' +
+        '<div class="q-pos">' + pos + '</div>' +
+        '<div class="q-name">' + esc(u.name) + '</div>' +
+        '<div class="q-token">#' + u.token + '</div>' +
+        '</div>';
+    }
+    queueList.innerHTML = html;
+  }
+
+  /* ── Render token strip ─────────────────────────────────── */
+  function renderStrip() {
+    if (allTokens.length === 0) { tokensStrip.innerHTML = ''; return; }
+
+    var html = '';
+    for (var i = 0; i < allTokens.length; i++) {
+      var t   = allTokens[i];
+      var cls = 't-chip' +
+        (t.status === 'served'    ? ' is-served' : '') +
+        (viewingToken === t.token ? ' active'    : '');
+      var first = t.name.split(' ')[0];
+      html += '<span class="' + cls + '" data-tok="' + t.token + '">#' + t.token + ' ' + esc(first) + '</span>';
+    }
+    tokensStrip.innerHTML = html;
+
+    var chips = tokensStrip.querySelectorAll('.t-chip');
+    for (var j = 0; j < chips.length; j++) {
+      chips[j].addEventListener('click', function () {
+        showStatus(parseInt(this.getAttribute('data-tok')));
+      });
+    }
+  }
+
+  /* ── Show status panel for a given token ───────────────── */
+  function showStatus(tok) {
+    viewingToken = tok;
+
+    var entry = findAllToken(tok);
+    if (!entry) return;
+
+    var pos = posInQueue(tok);
+
+    myTokenNum.textContent  = '#' + entry.token;
+    myTokenName.textContent = entry.name;
+    tokenCard.classList.remove('your-turn');
+    tokenPill.classList.remove('ready', 'served');
+
+    if (entry.status === 'served') {
+      tokenPill.textContent = 'Served ✓';
+      tokenPill.classList.add('served');
+      myWait.textContent    = '0';
+    } else if (pos === 0) {
+      tokenPill.textContent = "It's your turn!";
+      tokenPill.classList.add('ready');
+      tokenCard.classList.add('your-turn');
+      myWait.textContent    = '0';
+    } else if (pos > 0) {
+      tokenPill.textContent = 'Waiting — position ' + (pos + 1);
+      myWait.textContent    = pos * avgWait();
+    } else {
+      tokenPill.textContent = 'Waiting';
+      myWait.textContent    = '—';
+    }
+
+    regPanel.style.display    = 'none';
+    statusPanel.style.display = 'flex';
+    renderStrip();
+  }
+
+  /* ── Join queue ─────────────────────────────────────────── */
+  function join() {
+    var name = nameInput.value.trim();
+    if (!name) {
+      nameInput.classList.add('error');
+      nameInput.focus();
+      setTimeout(function () { nameInput.classList.remove('error'); }, 500);
+      return;
+    }
+
+    var tok  = nextToken++;
+    queue.push({ name: name, token: tok });
+    allTokens.push({ token: tok, name: name, status: 'waiting' });
+
+    nameInput.value = '';
+    renderQueue();
+    updateStats();
+    showStatus(tok);
+  }
+
+  /* ── Reset to registration form ─────────────────────────── */
+  function showReg() {
+    viewingToken              = null;
+    regPanel.style.display    = 'block';
+    statusPanel.style.display = 'none';
+    nameInput.value           = '';
+    setTimeout(function () { nameInput.focus(); }, 50);
+  }
+
+  /* ── Serve next ─────────────────────────────────────────── */
+  function serveNext() {
+    if (queue.length === 0) return;
+
+    serveBtn.disabled     = true;
+    serveBtn.textContent  = 'Calling...';
+
+    var served = queue.shift();
+    servedCount++;
+    serviceTimes.push(avgWait());
+    if (serviceTimes.length > 15) serviceTimes.shift();
+
+    var entry = findAllToken(served.token);
+    if (entry) entry.status = 'served';
+
+    statServed.textContent = servedCount;
+    flash(statServed);
+    renderQueue();
+    updateStats();
+
+    servingText.textContent     = 'Token #' + served.token + ' \u2014 ' + served.name;
+    servingBanner.style.display = 'block';
+    setTimeout(function () { servingBanner.style.display = 'none'; }, 6000);
+
+    /* If the currently viewed token is the one being called */
+    if (viewingToken === served.token) {
+      tokenCard.classList.add('your-turn');
+      tokenPill.textContent = "It's your turn!";
+      tokenPill.classList.add('ready');
+      tokenPill.classList.remove('served');
+      myWait.textContent = '0';
+
+      yourTurnText.textContent     = served.name + ', please proceed to the counter.';
+      yourTurnBanner.style.display = 'block';
+      setTimeout(function () { yourTurnBanner.style.display = 'none'; }, 8000);
+
+      /* Browser notification */
+      if (window.Notification && Notification.permission === 'granted') {
+        new Notification('SmartQueue', {
+          body: "It's your turn, " + served.name + "! Token #" + served.token + '. Please proceed to the counter.'
+        });
+      }
+    }
+
+    renderStrip();
+
+    setTimeout(function () {
+      serveBtn.disabled    = queue.length === 0;
+      serveBtn.innerHTML   = '&#9654; Serve next';
+    }, 800);
+  }
+
+  /* ── Update stat cards ──────────────────────────────────── */
+  function updateStats() {
+    var avg = avgWait();
+    statAvg.textContent   = avg;
+    statQueue.textContent = queue.length;
+    flash(statAvg);
+  }
+
+  /* ── Events ─────────────────────────────────────────────── */
+  joinBtn.addEventListener('click', join);
+  nameInput.addEventListener('keydown', function (e) { if (e.key === 'Enter') join(); });
+  serveBtn.addEventListener('click', serveNext);
+  newPersonBtn.addEventListener('click', showReg);
+
+  /* Request notification permission on load */
+  if (window.Notification && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+
+  /* Initial render */
+  renderQueue();
+  updateStats();
+}());
+</script>
+</body>
+</html>
